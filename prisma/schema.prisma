@@ -1,0 +1,148 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  RESPONDER
+  ADMIN
+}
+
+enum SosStatus {
+  CREATED
+  ACTIVE
+  ALERTING
+  HELP_ACCEPTED
+  RESPONDER_EN_ROUTE
+  RESOLVED
+  CANCELLED
+  ESCALATION_EXHAUSTED
+  FAILED
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id               String             @id @default(uuid())
+  phoneNumber      String             @unique
+  email            String?            @unique
+  passwordHash     String?
+  role             Role               @default(USER)
+  isPhoneVerified  Boolean            @default(false)
+  isEmailVerified  Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  profile          UserProfile?
+  verification     VerificationRecord?
+  responderProfile ResponderApplication?
+  contacts         TrustedContact[]
+  sosEvents        SosEvent[]         @relation("UserSos")
+  assignedSos      SosAssignment[]
+  auditLogs        AuditLog[]
+  refreshTokens    RefreshToken[]
+}
+
+model UserProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName         String
+  profilePhotoUrl  String?
+  dateOfBirth      DateTime?
+  emergencyInfo    String?
+  notificationPrefs Json?
+  privacySettings  Json?
+}
+
+model VerificationRecord {
+  id               String             @id @default(uuid())
+  userId           String             @unique
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           VerificationStatus @default(PENDING)
+  documentRef      String?
+  selfieRef        String?
+  rejectionReason  String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model ResponderApplication {
+  id            String             @id @default(uuid())
+  userId        String             @unique
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isAvailable   Boolean            @default(false)
+  currentLat    Float?
+  currentLng    Float?
+  lastPingAt    DateTime?
+  status        VerificationStatus @default(PENDING)
+}
+
+model TrustedContact {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  phoneNumber String
+  isPrimary   Boolean  @default(false)
+}
+
+model SosEvent {
+  id          String          @id @default(uuid())
+  userId      String
+  user        User            @relation("UserSos", fields: [userId], references: [id])
+  status      SosStatus       @default(CREATED)
+  latitude    Float
+  longitude   Float
+  accuracy    Float?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  stages      SosEscalation[]
+  assignment  SosAssignment?
+}
+
+model SosEscalation {
+  id          String    @id @default(uuid())
+  sosId       String
+  sosEvent    SosEvent  @relation(fields: [sosId], references: [id], onDelete: Cascade)
+  stageLevel  Int
+  radiusKm    Float
+  notifiedCount Int     @default(0)
+  createdAt   DateTime  @default(now())
+}
+
+model SosAssignment {
+  id           String    @id @default(uuid())
+  sosId        String    @unique
+  sosEvent     SosEvent  @relation(fields: [sosId], references: [id], onDelete: Cascade)
+  responderId  String
+  responder    User      @relation(fields: [responderId], references: [id])
+  acceptedAt   DateTime  @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
