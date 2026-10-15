@@ -1,0 +1,8 @@
+{
+  "name": "hershield-backend",
+  "version": "1.0.0",
+  "main": "src/server.ts",
+  "scripts": {
+    "start": "npx ts-node src/server.ts"
+  }
+}
